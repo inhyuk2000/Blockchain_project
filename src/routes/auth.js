@@ -1,59 +1,118 @@
 import express from "express";
-import passport from "passport";
 import jwt from "jsonwebtoken";
+import { verifyMessage, isAddress } from "ethers";
+import { findUserByWalletAddress } from "../data/userStore.js";
+import { consumeWalletNonce, issueWalletNonce } from "../data/walletAuthStore.js";
 
 const router = express.Router();
 
 /**
  * @swagger
- * /auth/oauth2/authorization/google:
- *   get:
- *     summary: 구글 소셜 로그인 시작
+ * /auth/wallet/nonce:
+ *   post:
+ *     summary: 지갑 로그인 nonce 발급
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [walletAddress]
+ *             properties:
+ *               walletAddress:
+ *                 type: string
  *     responses:
- *       302:
- *         description: Google 로그인 페이지로 리다이렉트
+ *       200:
+ *         description: nonce 발급 성공
+ *       400:
+ *         description: 요청 데이터 형식 오류
  */
-router.get(
-  "/oauth2/authorization/google",
-  passport.authenticate("google", {
-    scope: ["profile", "email"],
-    session: false,
-  })
-);
+router.post("/wallet/nonce", (req, res) => {
+  const { walletAddress } = req.body ?? {};
+  if (typeof walletAddress !== "string" || !isAddress(walletAddress)) {
+    return res.status(400).json({ message: "유효한 walletAddress가 필요합니다." });
+  }
+
+  const normalizedAddress = walletAddress.toLowerCase();
+  const nonce = issueWalletNonce(normalizedAddress);
+  const message = `Sign in to Blockchain App\nWallet: ${normalizedAddress}\nNonce: ${nonce}`;
+
+  return res.status(200).json({
+    walletAddress: normalizedAddress,
+    nonce,
+    message,
+  });
+});
 
 /**
  * @swagger
- * /auth/google/callback:
- *   get:
- *     summary: 구글 로그인 콜백
+ * /auth/wallet/verify:
+ *   post:
+ *     summary: 지갑 서명 검증 후 로그인
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [walletAddress, signature]
+ *             properties:
+ *               walletAddress:
+ *                 type: string
+ *               signature:
+ *                 type: string
  *     responses:
  *       200:
- *         description: JWT 발급 성공
+ *         description: 로그인 성공
+ *       400:
+ *         description: 잘못된 요청
+ *       401:
+ *         description: 서명 검증 실패
  */
-router.get(
-  "/google/callback",
-  passport.authenticate("google", {
-    failureRedirect: "/login?error=google_auth_failed",
-    session: false,
-  }),
-  (req, res) => {
-    const token = jwt.sign(
-      {
-        googleId: req.user.googleId ?? null,
-        email: req.user.email,
-        name: req.user.name,
-        isNewUser: req.user.isNewUser,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
-    );
+router.post("/wallet/verify", (req, res) => {
+  try {
+    const { walletAddress, signature } = req.body ?? {};
+    if (
+      typeof walletAddress !== "string" ||
+      typeof signature !== "string" ||
+      !isAddress(walletAddress)
+    ) {
+      return res.status(400).json({ message: "walletAddress와 signature를 확인해주세요." });
+    }
+
+    const normalizedAddress = walletAddress.toLowerCase();
+    const nonce = consumeWalletNonce(normalizedAddress);
+    if (!nonce) {
+      return res.status(401).json({ message: "nonce가 없거나 만료되었습니다." });
+    }
+
+    const message = `Sign in to Blockchain App\nWallet: ${normalizedAddress}\nNonce: ${nonce}`;
+    const recoveredAddress = verifyMessage(message, signature).toLowerCase();
+
+    if (recoveredAddress !== normalizedAddress) {
+      return res.status(401).json({ message: "지갑 서명 검증에 실패했습니다." });
+    }
+
+    const existingUser = findUserByWalletAddress(normalizedAddress);
+    const payload = {
+      id: existingUser?.id ?? null,
+      walletAddress: normalizedAddress,
+      email: existingUser?.email ?? null,
+      name: existingUser?.name ?? null,
+      isNewUser: !existingUser,
+    };
+
+    const accessToken = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "1h" });
 
     return res.status(200).json({
-      message: "구글 로그인 성공",
-      accessToken: token,
-      isNewUser: req.user.isNewUser,
-      redirectTo: req.user.isNewUser ? "/users/signup" : "/home",
+      message: "지갑 로그인 성공",
+      accessToken,
+      isNewUser: !existingUser,
+      redirectTo: existingUser ? "/home" : "/users/signup",
     });
+  } catch (error) {
+    return res.status(500).json({ message: "지갑 로그인 처리 중 오류가 발생했습니다." });
+  }
   }
 );
 

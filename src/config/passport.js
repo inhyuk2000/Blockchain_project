@@ -1,5 +1,6 @@
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import { findUserByEmail, findUserByGoogleId } from "../data/userStore.js";
 
 passport.use(
   new GoogleStrategy(
@@ -14,14 +15,14 @@ passport.use(
         const email = profile.emails?.[0]?.value ?? null;
         const name = profile.displayName ?? "";
 
-        // TODO: DB 조회 필요
-
-        const existingUser = null; // dummy data
+        const existingUser = findUserByGoogleId(googleId) ?? findUserByEmail(email);
 
         if (existingUser) {
           return done(null, {
             id: existingUser.id,
+            googleId: existingUser.googleId ?? googleId,
             email: existingUser.email,
+            name: existingUser.name ?? name,
             isNewUser: false,
           });
         }
