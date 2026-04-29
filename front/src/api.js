@@ -1,0 +1,28 @@
+export const API_BASE_URL = "http://localhost:4000";
+
+export async function apiRequest(path, { method = "GET", body, token } = {}) {
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+  const headers = isFormData ? {} : { "Content-Type": "application/json" };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers,
+    body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
+  });
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    data = { message: "응답 본문이 없습니다." };
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.message || `HTTP ${response.status}`);
+  }
+
+  return data;
+}
