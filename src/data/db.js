@@ -49,9 +49,24 @@ CREATE TABLE IF NOT EXISTS images (
   image_hash TEXT NOT NULL,
   verification_status TEXT NOT NULL,
   tx_hash TEXT NOT NULL,
+  is_sold INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
+
+CREATE TABLE IF NOT EXISTS image_favorites (
+  user_id INTEGER NOT NULL,
+  image_id INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, image_id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (image_id) REFERENCES images(id)
+);
 `);
+
+const existingImageCols = db.prepare(`PRAGMA table_info(images)`).all().map((c) => c.name);
+if (!existingImageCols.includes("is_sold")) {
+  db.exec(`ALTER TABLE images ADD COLUMN is_sold INTEGER NOT NULL DEFAULT 0`);
+}
 
 export default db;

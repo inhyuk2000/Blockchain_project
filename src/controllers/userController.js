@@ -7,6 +7,7 @@ import {
   getAllUsers,
   updateUserById,
 } from "../data/userStore.js";
+import { getFavoritedImageIds } from "../data/favoriteStore.js";
 
 export const getUsers = (req, res) => {
   res.json({ users: getAllUsers() });
@@ -86,6 +87,29 @@ export const getMe = (req, res) => {
       nickname: user.nickname,
       profileImageUrl: user.profileImageUrl ?? null,
     });
+  } catch (error) {
+    return res.status(500).json({ message: "서버 내부 오류가 발생했습니다." });
+  }
+};
+
+export const getMyFavoriteImageIds = (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "인증 토큰이 없거나 유효하지 않습니다." });
+    }
+
+    const user =
+      (req.user.id ? findUserById(req.user.id) : null) ??
+      (req.user.walletAddress ? findUserByWalletAddress(req.user.walletAddress) : null) ??
+      (req.user.googleId ? findUserByGoogleId(req.user.googleId) : null) ??
+      (req.user.email ? findUserByEmail(req.user.email) : null);
+
+    if (!user) {
+      return res.status(404).json({ message: "사용자 정보를 찾을 수 없습니다." });
+    }
+
+    const imageIds = Array.from(getFavoritedImageIds(user.id)).sort((a, b) => a - b);
+    return res.status(200).json({ imageIds });
   } catch (error) {
     return res.status(500).json({ message: "서버 내부 오류가 발생했습니다." });
   }

@@ -1,5 +1,13 @@
 export const API_BASE_URL = "http://localhost:4000";
 
+export class ApiError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 export async function apiRequest(path, { method = "GET", body, token } = {}) {
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const headers = isFormData ? {} : { "Content-Type": "application/json" };
@@ -21,7 +29,7 @@ export async function apiRequest(path, { method = "GET", body, token } = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(data?.message || `HTTP ${response.status}`);
+    throw new ApiError(data?.message || `HTTP ${response.status}`, response.status);
   }
 
   return data;

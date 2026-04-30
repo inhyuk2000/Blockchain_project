@@ -1,6 +1,6 @@
 import express from "express";
 
-import { getMe, getUsers, signupUser, updateMyProfile } from "../controllers/userController.js";
+import { getMe, getMyFavoriteImageIds, getUsers, signupUser, updateMyProfile } from "../controllers/userController.js";
 import { verifyToken } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
@@ -49,6 +49,7 @@ router.get("/", getUsers);
  *       500:
  *         description: 서버 내부 오류
  */
+router.get("/me/favorites", verifyToken, getMyFavoriteImageIds);
 router.get("/me", verifyToken, getMe);
 
 /**

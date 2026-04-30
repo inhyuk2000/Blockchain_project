@@ -114,6 +114,16 @@ button {
   padding: 9px;
 }
 
+select {
+  width: 100%;
+  font: inherit;
+  margin-top: 4px;
+  margin-bottom: 8px;
+  border: 1px solid #cfcfcf;
+  border-radius: 8px;
+  padding: 9px;
+}
+
 button {
   background: #f4f4f4;
   cursor: pointer;
@@ -152,16 +162,298 @@ button.primary {
 }
 
 .imageCard {
+  display: flex;
+  flex-direction: column;
   text-align: left;
   background: #fff;
+  border: 1px solid #eaeaea;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.imageCardVisual {
+  position: relative;
+}
+
+.imageCategoryBadge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #111;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .thumb {
   width: 100%;
   aspect-ratio: 1 / 1;
-  border-radius: 8px;
+  border-radius: 0;
   background: linear-gradient(135deg, #e9edf2, #d8dbe0);
+  display: block;
+  object-fit: cover;
+}
+
+.imageCardBody {
+  padding: 8px 8px 0;
+  flex: 1;
+}
+
+.imageCardTitle {
+  font-size: 13px;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.imageCardMeta {
+  margin: 0;
+  font-size: 11px;
+  color: #666;
+}
+
+.imageCardMetaMuted {
+  font-size: 11px;
+  color: #999;
+}
+
+.imageCardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 6px 8px 10px;
+  margin-top: auto;
+}
+
+.heartBtn {
+  width: auto;
+  margin: 0;
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 18px;
+  line-height: 1;
+  color: #c5c5c5;
+}
+
+.heartBtn:hover:not(:disabled) {
+  background: rgba(229, 57, 53, 0.08);
+  color: #e57373;
+}
+
+.heartBtn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.heartBtnActive {
+  color: #e53935;
+}
+
+.imagePriceTag {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.gallerySortRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin-bottom: 8px;
+}
+
+.gallerySortRow span {
+  font-size: 12px;
+  color: #555;
+}
+
+.soldBadge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: rgba(17, 17, 17, 0.85);
+  border-radius: 6px;
+}
+
+.loadMoreBtn {
+  margin-top: 12px;
+}
+
+.galleryHeroTitle {
+  text-align: center;
+  font-size: 18px;
+  margin: 4px 0 12px;
+}
+
+.carouselMock {
+  width: 100%;
+  border-radius: 12px;
+  background: linear-gradient(160deg, #e8ecf1, #dfe3e8);
+  aspect-ratio: 4 / 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.carouselMock p {
+  margin: 0;
+  font-size: 13px;
+  color: #555;
+}
+
+.carouselDots {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.carouselDots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #bdbdbd;
+}
+
+.stripHeading {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.hStrip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+  margin-bottom: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.hStripTall {
+  min-height: 200px;
+}
+
+.homeMiniCard {
+  flex: 0 0 120px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #eaeaea;
+  background: #fff;
+}
+
+.homeMiniCard img {
+  width: 120px;
+  height: 100px;
+  object-fit: cover;
+  display: block;
+}
+
+.homeMiniMeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px;
+  gap: 4px;
+}
+
+.homeMiniTitle {
+  font-size: 11px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.heartBtnSmall {
+  width: auto !important;
+  margin: 0 !important;
+  padding: 2px 4px !important;
+  font-size: 14px !important;
+  border: none !important;
+  background: transparent !important;
+}
+
+.gallerySearchBar {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.gallerySearchBar input {
+  width: 100%;
+}
+
+.gallerySearchActions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.gallerySearchActions button {
+  width: 100%;
+  margin: 0;
+}
+
+.categoryStripBlock {
+  margin-bottom: 18px;
+}
+
+.galleryHCard {
+  flex: 0 0 150px;
+  border: 1px solid #eaeaea;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.thumbFill {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  display: block;
+}
+
+.galleryCardCat {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.92);
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.galleryHCBody {
+  padding: 8px;
+}
+
+.galleryHCFooter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
 }
 
 .uploadBox {
