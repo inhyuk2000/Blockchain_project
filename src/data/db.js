@@ -62,11 +62,41 @@ CREATE TABLE IF NOT EXISTS image_favorites (
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (image_id) REFERENCES images(id)
 );
+
+CREATE TABLE IF NOT EXISTS orders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  buyer_user_id INTEGER NOT NULL,
+  image_id INTEGER NOT NULL,
+  price INTEGER NOT NULL,
+  payment_method TEXT NOT NULL,
+  order_status TEXT NOT NULL DEFAULT 'PAID',
+  purchased_at TEXT NOT NULL,
+  FOREIGN KEY (buyer_user_id) REFERENCES users(id),
+  FOREIGN KEY (image_id) REFERENCES images(id)
+);
+
+CREATE TABLE IF NOT EXISTS download_tokens (
+  token TEXT PRIMARY KEY,
+  file_path TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS watermarked_delivery_hashes (
+  content_hash TEXT PRIMARY KEY,
+  image_id INTEGER NOT NULL,
+  order_id INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (image_id) REFERENCES images(id),
+  FOREIGN KEY (order_id) REFERENCES orders(id)
+);
 `);
 
 const existingImageCols = db.prepare(`PRAGMA table_info(images)`).all().map((c) => c.name);
 if (!existingImageCols.includes("is_sold")) {
   db.exec(`ALTER TABLE images ADD COLUMN is_sold INTEGER NOT NULL DEFAULT 0`);
+}
+if (!existingImageCols.includes("block_number")) {
+  db.exec(`ALTER TABLE images ADD COLUMN block_number INTEGER`);
 }
 
 export default db;

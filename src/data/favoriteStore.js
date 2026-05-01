@@ -21,12 +21,37 @@ export const addImageFavorite = (userId, imageId) => {
   }
 };
 
-/** 멱등: 찜이 없어도 삭제만 시도 (토글 UI용) */
+/** @returns {boolean} 삭제된 행이 있었으면 true */
 export const removeImageFavorite = (userId, imageId) => {
-  db.prepare(`DELETE FROM image_favorites WHERE user_id = ? AND image_id = ?`).run(userId, imageId);
+  const result = db.prepare(`DELETE FROM image_favorites WHERE user_id = ? AND image_id = ?`).run(userId, imageId);
+  return result.changes > 0;
 };
 
 export const getFavoritedImageIds = (userId) => {
   const rows = db.prepare(`SELECT image_id FROM image_favorites WHERE user_id = ?`).all(userId);
   return new Set(rows.map((r) => r.image_id));
 };
+
+/** GET /users/me/favorites 응답 스펙 */
+export function listFavoritesSpecPaged(userId, page, pageSize) {
+  const offset = page * pageSize;
+  const rows = db
+    .prepare(
+      `
+      SELECT i.id, i.title, i.thumbnail_url, i.price, i.verification_status
+      FROM image_favorites f
+      INNER JOIN images i ON i.id = f.image_id
+      WHERE f.user_id = ?
+      ORDER BY f.created_at DESC
+      LIMIT ? OFFSET ?
+      `
+    )
+    .all(userId, pageSize, offset);
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    thumbnailUrl: row.thumbnail_url,
+    price: row.price,
+    verificationStatus: row.verification_status,
+  }));
+}

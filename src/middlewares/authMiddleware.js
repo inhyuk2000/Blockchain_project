@@ -21,7 +21,7 @@ export const verifyToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "인증 토큰이 없거나 형식이 올바르지 않습니다." });
+    return res.status(401).json({ message: "인증이 필요합니다." });
   }
 
   const token = authHeader.split(" ")[1];
@@ -31,6 +31,6 @@ export const verifyToken = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(401).json({ message: "유효하지 않은 토큰입니다." });
+    return res.status(401).json({ message: "인증이 필요합니다." });
   }
 };

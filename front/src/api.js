@@ -21,11 +21,14 @@ export async function apiRequest(path, { method = "GET", body, token } = {}) {
     body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
   });
 
+  const rawText = await response.text();
   let data = null;
-  try {
-    data = await response.json();
-  } catch {
-    data = { message: "응답 본문이 없습니다." };
+  if (rawText) {
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      data = { message: rawText };
+    }
   }
 
   if (!response.ok) {

@@ -18,6 +18,10 @@ const toImage = (row) =>
         imageHash: row.image_hash,
         verificationStatus: row.verification_status,
         txHash: row.tx_hash,
+        blockNumber:
+          row.block_number !== undefined && row.block_number !== null
+            ? Number(row.block_number)
+            : null,
         isSold: Boolean(row.is_sold ?? row.isSold ?? 0),
         createdAt: row.created_at,
       }
@@ -45,6 +49,7 @@ export const createImage = ({
   imageHash,
   verificationStatus,
   txHash,
+  blockNumber = null,
 }) => {
   const result = db
     .prepare(
@@ -52,9 +57,9 @@ export const createImage = ({
       INSERT INTO images (
         user_id, title, description, price, category,
         device_id, captured_at, image_url, thumbnail_url,
-        image_hash, verification_status, tx_hash, is_sold, created_at
+        image_hash, verification_status, tx_hash, block_number, is_sold, created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
       `
     )
     .run(
@@ -69,7 +74,8 @@ export const createImage = ({
       thumbnailUrl,
       imageHash,
       verificationStatus,
-      txHash
+      txHash,
+      blockNumber
     );
 
   return getImageById(result.lastInsertRowid);
@@ -81,7 +87,8 @@ export const getImageById = (id) =>
       .prepare(
         `
         SELECT id, user_id, title, description, price, category, device_id, captured_at,
-               image_url, thumbnail_url, image_hash, verification_status, tx_hash, is_sold, created_at
+               image_url, thumbnail_url, image_hash, verification_status, tx_hash,
+               block_number, is_sold, created_at
         FROM images
         WHERE id = ?
         `
@@ -89,12 +96,42 @@ export const getImageById = (id) =>
       .get(id)
   );
 
+/** 업로드 파일 해시로 등록 이미지 1건 조회 (진품 검증) */
+export function findImageByContentHash(normalizedHashLower) {
+  const h = String(normalizedHashLower ?? "").trim().toLowerCase();
+  if (!h) return null;
+  const row = db
+    .prepare(
+      `
+      SELECT id, image_hash, tx_hash
+      FROM images
+      WHERE LOWER(TRIM(image_hash)) = ?
+      ORDER BY id ASC
+      LIMIT 1
+      `
+    )
+    .get(h);
+  if (!row) return null;
+  return {
+    id: row.id,
+    imageHash: row.image_hash,
+    txHash: row.tx_hash,
+  };
+}
+
+export const deleteImageById = (id) => {
+  db.prepare(`DELETE FROM image_favorites WHERE image_id = ?`).run(id);
+  const result = db.prepare(`DELETE FROM images WHERE id = ?`).run(id);
+  return result.changes > 0;
+};
+
 export const getAllImages = () =>
   db
     .prepare(
       `
       SELECT id, user_id, title, description, price, category, device_id, captured_at,
-             image_url, thumbnail_url, image_hash, verification_status, tx_hash, is_sold, created_at
+             image_url, thumbnail_url, image_hash, verification_status, tx_hash,
+             block_number, is_sold, created_at
       FROM images
       ORDER BY id DESC
       `
@@ -194,4 +231,42 @@ export function listDistinctImageCategories() {
     )
     .all()
     .map((row) => row.c);
+}
+
+/** SQLite/문자열 시각 → ISO 8601 UTC (스펙 예시와 동일한 형태) */
+export function toIso8601UtcZ(raw) {
+  if (raw == null || raw === "") return "";
+  const s = String(raw).trim();
+  if (!s) return "";
+  const hasTz = /Z$/i.test(s) || /[+-]\d{2}:?\d{2}$/.test(s);
+  const normalized = hasTz ? s : s.includes("T") ? `${s}Z` : `${s.replace(" ", "T")}Z`;
+  const d = new Date(normalized);
+  return Number.isNaN(d.getTime()) ? s : d.toISOString();
+}
+
+const mapRowToMyUploadItem = (row) => ({
+  id: row.id,
+  title: row.title,
+  thumbnailUrl: row.thumbnail_url,
+  price: row.price,
+  verificationStatus: row.verification_status,
+  isSold: Boolean(row.is_sold),
+  createdAt: toIso8601UtcZ(row.created_at),
+});
+
+/** 로그인 사용자 업로드 목록 (GET /users/me/images) */
+export function listImagesByUserPaged(userId, page, pageSize) {
+  const offset = page * pageSize;
+  const rows = db
+    .prepare(
+      `
+      SELECT id, title, thumbnail_url, price, verification_status, is_sold, created_at
+      FROM images
+      WHERE user_id = ?
+      ORDER BY id DESC
+      LIMIT ? OFFSET ?
+      `
+    )
+    .all(userId, pageSize, offset);
+  return rows.map(mapRowToMyUploadItem);
 }

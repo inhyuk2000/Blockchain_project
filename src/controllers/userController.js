@@ -7,7 +7,9 @@ import {
   getAllUsers,
   updateUserById,
 } from "../data/userStore.js";
-import { getFavoritedImageIds } from "../data/favoriteStore.js";
+import { listFavoritesSpecPaged } from "../data/favoriteStore.js";
+import { listImagesByUserPaged } from "../data/imageStore.js";
+import { listOrdersByBuyerPaged } from "../data/orderStore.js";
 
 export const getUsers = (req, res) => {
   res.json({ users: getAllUsers() });
@@ -17,7 +19,7 @@ export const signupUser = (req, res) => {
   const { name, email, nickname } = req.body;
 
   if (!req.user) {
-    return res.status(401).json({ message: "인증 토큰이 없거나 유효하지 않습니다." });
+    return res.status(401).json({ message: "인증이 필요합니다." });
   }
 
   if (!name || !email || !nickname) {
@@ -67,7 +69,7 @@ export const signupUser = (req, res) => {
 export const getMe = (req, res) => {
   try {
     if (!req.user) {
-      return res.status(401).json({ message: "인증 토큰이 없거나 유효하지 않습니다." });
+      return res.status(401).json({ message: "인증이 필요합니다." });
     }
 
     const user =
@@ -92,10 +94,14 @@ export const getMe = (req, res) => {
   }
 };
 
-export const getMyFavoriteImageIds = (req, res) => {
+const MY_IMAGES_MAX_PAGE_SIZE = 100;
+const MY_IMAGES_DEFAULT_PAGE_SIZE = 20;
+
+/** GET /users/me/favorites — 찜한 이미지 목록 (페이지네이션) */
+export const getMyFavorites = (req, res) => {
   try {
     if (!req.user) {
-      return res.status(401).json({ message: "인증 토큰이 없거나 유효하지 않습니다." });
+      return res.status(401).json({ message: "인증이 필요합니다." });
     }
 
     const user =
@@ -108,8 +114,101 @@ export const getMyFavoriteImageIds = (req, res) => {
       return res.status(404).json({ message: "사용자 정보를 찾을 수 없습니다." });
     }
 
-    const imageIds = Array.from(getFavoritedImageIds(user.id)).sort((a, b) => a - b);
-    return res.status(200).json({ imageIds });
+    const pageRaw = req.query.page ?? "0";
+    const sizeRaw = req.query.size ?? String(MY_IMAGES_DEFAULT_PAGE_SIZE);
+    const pageNum = Number.parseInt(String(pageRaw), 10);
+    const sizeNum = Number.parseInt(String(sizeRaw), 10);
+
+    if (
+      !Number.isInteger(pageNum) ||
+      pageNum < 0 ||
+      !Number.isInteger(sizeNum) ||
+      sizeNum < 1 ||
+      sizeNum > MY_IMAGES_MAX_PAGE_SIZE
+    ) {
+      return res.status(400).json({ message: "잘못된 query parameter입니다." });
+    }
+
+    const items = listFavoritesSpecPaged(user.id, pageNum, sizeNum);
+    return res.status(200).json(items);
+  } catch (error) {
+    return res.status(500).json({ message: "서버 내부 오류가 발생했습니다." });
+  }
+};
+
+/** 로그인 사용자 업로드 이미지 목록 */
+export const getMyImages = (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "인증이 필요합니다." });
+    }
+
+    const user =
+      (req.user.id ? findUserById(req.user.id) : null) ??
+      (req.user.walletAddress ? findUserByWalletAddress(req.user.walletAddress) : null) ??
+      (req.user.googleId ? findUserByGoogleId(req.user.googleId) : null) ??
+      (req.user.email ? findUserByEmail(req.user.email) : null);
+
+    if (!user) {
+      return res.status(404).json({ message: "사용자 정보를 찾을 수 없습니다." });
+    }
+
+    const pageRaw = req.query.page ?? "0";
+    const sizeRaw = req.query.size ?? String(MY_IMAGES_DEFAULT_PAGE_SIZE);
+    const pageNum = Number.parseInt(String(pageRaw), 10);
+    const sizeNum = Number.parseInt(String(sizeRaw), 10);
+
+    if (
+      !Number.isInteger(pageNum) ||
+      pageNum < 0 ||
+      !Number.isInteger(sizeNum) ||
+      sizeNum < 1 ||
+      sizeNum > MY_IMAGES_MAX_PAGE_SIZE
+    ) {
+      return res.status(400).json({ message: "잘못된 query parameter입니다." });
+    }
+
+    const items = listImagesByUserPaged(user.id, pageNum, sizeNum);
+    return res.status(200).json(items);
+  } catch (error) {
+    return res.status(500).json({ message: "서버 내부 오류가 발생했습니다." });
+  }
+};
+
+/** GET /users/me/orders — 이미지 구매 내역 (페이지네이션) */
+export const getMyOrders = (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "인증이 필요합니다." });
+    }
+
+    const user =
+      (req.user.id ? findUserById(req.user.id) : null) ??
+      (req.user.walletAddress ? findUserByWalletAddress(req.user.walletAddress) : null) ??
+      (req.user.googleId ? findUserByGoogleId(req.user.googleId) : null) ??
+      (req.user.email ? findUserByEmail(req.user.email) : null);
+
+    if (!user) {
+      return res.status(404).json({ message: "사용자 정보를 찾을 수 없습니다." });
+    }
+
+    const pageRaw = req.query.page ?? "0";
+    const sizeRaw = req.query.size ?? String(MY_IMAGES_DEFAULT_PAGE_SIZE);
+    const pageNum = Number.parseInt(String(pageRaw), 10);
+    const sizeNum = Number.parseInt(String(sizeRaw), 10);
+
+    if (
+      !Number.isInteger(pageNum) ||
+      pageNum < 0 ||
+      !Number.isInteger(sizeNum) ||
+      sizeNum < 1 ||
+      sizeNum > MY_IMAGES_MAX_PAGE_SIZE
+    ) {
+      return res.status(400).json({ message: "잘못된 query parameter입니다." });
+    }
+
+    const items = listOrdersByBuyerPaged(user.id, pageNum, sizeNum);
+    return res.status(200).json(items);
   } catch (error) {
     return res.status(500).json({ message: "서버 내부 오류가 발생했습니다." });
   }
@@ -118,7 +217,7 @@ export const getMyFavoriteImageIds = (req, res) => {
 export const updateMyProfile = (req, res) => {
   try {
     if (!req.user) {
-      return res.status(401).json({ message: "인증 토큰이 없거나 유효하지 않습니다." });
+      return res.status(401).json({ message: "인증이 필요합니다." });
     }
 
     const { name, nickname, email } = req.body ?? {};
@@ -160,7 +259,7 @@ export const updateMyProfile = (req, res) => {
       (req.user.email ? findUserByEmail(req.user.email) : null);
 
     if (!currentUser) {
-      return res.status(401).json({ message: "인증 토큰이 없거나 유효하지 않습니다." });
+      return res.status(401).json({ message: "인증이 필요합니다." });
     }
 
     if (hasNickname) {

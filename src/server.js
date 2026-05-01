@@ -1,7 +1,18 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-const { default: app } = await import("./app.js");
+const [{ default: app }, { ensureDummyImages }, { ensureDemoPurchase }] = await Promise.all([
+  import("./app.js"),
+  import("./data/ensureDummyImages.js"),
+  import("./data/ensureDemoPurchase.js"),
+]);
+
+try {
+  ensureDummyImages();
+  ensureDemoPurchase();
+} catch (e) {
+  console.error("[dummy] 시드 실행 실패:", e?.message || e);
+}
 
 const PORT = process.env.PORT || 4000;
 

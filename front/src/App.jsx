@@ -1,12 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ApiError, API_BASE_URL, apiRequest } from "./api";
+import { computeImageSha256Hex0x } from "./imageHash";
+import { registerImageOnChain } from "./registerImageOnChain";
 import {
   clearAccessToken,
   clearRefreshToken,
   getAccessToken,
   loginWithMetaMask,
 } from "./auth";
+import ImageDetailPage from "./ImageDetailPage";
+import MyUploadsPage from "./MyUploadsPage";
+import ProfileEditPage from "./ProfileEditPage";
+import ProfileLandingPage from "./ProfileLandingPage";
+import VerifyPage from "./VerifyPage";
+import AppBottomNav from "./AppBottomNav";
 
 const HOME_FEED_SIZE = 12;
 const GALLERY_STRIP_SIZE = 30;
@@ -57,9 +65,6 @@ function LoginPage() {
 
 function HomePage() {
   const [tab, setTab] = useState("home");
-  const [me, setMe] = useState(null);
-  const [profileForm, setProfileForm] = useState({ name: "", email: "" });
-  const [profilePending, setProfilePending] = useState(false);
   const [favoriteIds, setFavoriteIds] = useState([]);
   const favSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
 
@@ -94,29 +99,41 @@ function HomePage() {
   });
 
   const navigate = useNavigate();
+  const location = useLocation();
   const token = getAccessToken();
+
+  useEffect(() => {
+    const t = location.state?.tab;
+    if (t === "home" || t === "upload" || t === "gallery") {
+      setTab(t);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state?.tab, location.pathname, navigate]);
 
   const reloadFavorites = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await apiRequest("/users/me/favorites", { token });
-      setFavoriteIds(res.imageIds ?? []);
+      const res = await apiRequest(`/users/me/favorites?page=0&size=100`, { token });
+      setFavoriteIds(Array.isArray(res) ? res.map((item) => item.id) : []);
     } catch {
       setFavoriteIds([]);
     }
   }, [token]);
 
   const loadHomeRecent = useCallback(async () => {
-    if (!token) return;
     try {
       setHomePending(true);
-      await reloadFavorites();
+      if (token) {
+        await reloadFavorites();
+      } else {
+        setFavoriteIds([]);
+      }
       const params = new URLSearchParams({
         page: "0",
         size: String(HOME_FEED_SIZE),
         sort: "latest",
       });
-      const list = await apiRequest(`/images?${params}`, { token });
+      const list = await apiRequest(`/images?${params}`, token ? { token } : {});
       if (!Array.isArray(list)) throw new Error("Unexpected home feed response");
       setHomeRecent(list);
     } catch {
@@ -127,16 +144,19 @@ function HomePage() {
   }, [token, reloadFavorites]);
 
   const loadGalleryBrowse = useCallback(async () => {
-    if (!token) return;
     try {
       setGalleryPending(true);
-      await reloadFavorites();
-      const categories = await apiRequest("/images/categories", { token });
+      if (token) {
+        await reloadFavorites();
+      } else {
+        setFavoriteIds([]);
+      }
+      const categories = await apiRequest("/images/categories", token ? { token } : {});
       const catList = Array.isArray(categories) ? categories : [];
 
       if (catList.length === 0) {
         const qs = buildSearchQs({ page: 0, size: 40 });
-        const list = await apiRequest(`/images/search?${qs}`, { token });
+        const list = await apiRequest(`/images/search?${qs}`, token ? { token } : {});
         setBrowseSections([{ category: "All", items: Array.isArray(list) ? list : [] }]);
         return;
       }
@@ -144,7 +164,7 @@ function HomePage() {
       const sections = [];
       for (const cat of catList) {
         const qs = buildSearchQs({ category: cat, page: 0, size: GALLERY_STRIP_SIZE });
-        const list = await apiRequest(`/images/search?${qs}`, { token });
+        const list = await apiRequest(`/images/search?${qs}`, token ? { token } : {});
         sections.push({ category: cat, items: Array.isArray(list) ? list : [] });
       }
       setBrowseSections(sections);
@@ -157,17 +177,18 @@ function HomePage() {
 
   const fetchSearch = useCallback(
     async (keyword, category, pageToLoad, append) => {
-      if (!token) return;
       try {
         setGalleryPending(true);
-        await reloadFavorites();
+        if (token) {
+          await reloadFavorites();
+        }
         const qs = buildSearchQs({
           keyword,
           category,
           page: pageToLoad,
           size: GALLERY_SEARCH_SIZE,
         });
-        const list = await apiRequest(`/images/search?${qs}`, { token });
+        const list = await apiRequest(`/images/search?${qs}`, token ? { token } : {});
         if (!Array.isArray(list)) throw new Error("검색 응답 형식 오류");
         if (append) {
           setSearchResultsBare((prev) => [...prev, ...list]);
@@ -186,59 +207,18 @@ function HomePage() {
     [token, reloadFavorites]
   );
 
-  const loadMe = async () => {
-    try {
-      setProfilePending(true);
-      const data = await apiRequest("/users/me", { token });
-      setMe(data);
-      setProfileForm({
-        name: data.name ?? "",
-        email: data.email ?? "",
-      });
-    } catch {
-      setMe(null);
-    } finally {
-      setProfilePending(false);
-    }
-  };
-
-  const saveProfile = async () => {
-    try {
-      setProfilePending(true);
-      const data = await apiRequest("/users/profile", {
-        method: "PATCH",
-        token,
-        body: {
-          name: profileForm.name,
-          email: profileForm.email,
-        },
-      });
-      setMe(data);
-    } catch {
-      setMe(null);
-    } finally {
-      setProfilePending(false);
-    }
-  };
-
   useEffect(() => {
-    if (tab === "profile" && token) {
-      loadMe();
-    }
-  }, [tab, token]);
-
-  useEffect(() => {
-    if (tab === "home" && token) {
+    if (tab === "home") {
       loadHomeRecent();
     }
-  }, [tab, token, loadHomeRecent]);
+  }, [tab, loadHomeRecent]);
 
   useEffect(() => {
-    if (tab !== "gallery" || !token) return;
+    if (tab !== "gallery") return;
     if (galleryMode === "browse") {
       loadGalleryBrowse();
     }
-  }, [tab, token, galleryMode, loadGalleryBrowse]);
+  }, [tab, galleryMode, loadGalleryBrowse]);
 
   const toggleFavorite = async (image) => {
     if (!token) return;
@@ -256,6 +236,9 @@ function HomePage() {
         setFavoriteIds((prev) => [...new Set([...prev, image.id])]);
         return;
       }
+      if (err instanceof ApiError && err.status === 404 && favSet.has(image.id)) {
+        setFavoriteIds((prev) => prev.filter((x) => x !== image.id));
+      }
     } finally {
       setFavoriteBusyId(null);
     }
@@ -263,7 +246,6 @@ function HomePage() {
 
   const submitGallerySearch = async (e) => {
     e.preventDefault();
-    if (!token) return;
     const kw = searchDraftKw.trim();
     const cat = searchDraftCat.trim();
     setAppliedSearchKw(kw);
@@ -288,15 +270,43 @@ function HomePage() {
         return;
       }
       setUploadPending(true);
+      const file = uploadForm.image;
+      const roundedPrice = Math.round(Number(uploadForm.price));
+      const capturedIso = uploadForm.capturedAt
+        ? new Date(uploadForm.capturedAt).toISOString()
+        : "";
+
+      const imageHash = await computeImageSha256Hex0x(file);
+      const metadata = JSON.stringify({
+        title: String(uploadForm.title),
+        description: uploadForm.description ? String(uploadForm.description) : "",
+        price: roundedPrice,
+        category: String(uploadForm.category),
+        deviceId: uploadForm.deviceId ? String(uploadForm.deviceId) : "",
+        capturedAt: capturedIso,
+      });
+
+      const { txHash, verificationStatus, blockNumber } = await registerImageOnChain({
+        imageHash,
+        price: roundedPrice,
+        metadata,
+      });
+
       const formData = new FormData();
-      formData.append("image", uploadForm.image);
+      formData.append("image", file);
       formData.append("title", uploadForm.title);
       formData.append("description", uploadForm.description);
-      formData.append("price", uploadForm.price);
+      formData.append("price", String(uploadForm.price));
       formData.append("category", uploadForm.category);
+      formData.append("imageHash", imageHash);
+      formData.append("txHash", txHash);
+      formData.append("verificationStatus", verificationStatus);
       if (uploadForm.deviceId) formData.append("deviceId", uploadForm.deviceId);
       if (uploadForm.capturedAt) {
-        formData.append("capturedAt", new Date(uploadForm.capturedAt).toISOString());
+        formData.append("capturedAt", capturedIso);
+      }
+      if (blockNumber != null && Number.isFinite(blockNumber)) {
+        formData.append("blockNumber", String(blockNumber));
       }
 
       await apiRequest("/images", {
@@ -333,7 +343,19 @@ function HomePage() {
   };
 
   const renderGalleryCard = (image) => (
-    <article key={`g-${image.id}`} className="galleryHCard">
+    <article
+      key={`g-${image.id}`}
+      className="galleryHCard clickableCard"
+      role="button"
+      tabIndex={0}
+      onClick={() => navigate(`/images/${image.id}`)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          navigate(`/images/${image.id}`);
+        }
+      }}
+    >
       <div className="imageCardVisual">
         <img
           className="thumb thumbFill"
@@ -348,7 +370,10 @@ function HomePage() {
           <button
             type="button"
             className={`heartBtn ${favSet.has(image.id) ? "heartBtnActive" : ""}`}
-            onClick={() => toggleFavorite(image)}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFavorite(image);
+            }}
             disabled={favoriteBusyId === image.id}
             title={favSet.has(image.id) ? "찜 해제" : "찜하기"}
             aria-pressed={favSet.has(image.id)}
@@ -397,14 +422,29 @@ function HomePage() {
                 homeRecent.map((image) => {
                   const merged = image;
                   return (
-                    <article key={`h-${merged.id}`} className="homeMiniCard">
+                    <article
+                      key={`h-${merged.id}`}
+                      className="homeMiniCard clickableCard"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => navigate(`/images/${merged.id}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          navigate(`/images/${merged.id}`);
+                        }
+                      }}
+                    >
                       <img src={`${API_BASE_URL}${merged.thumbnailUrl}`} alt={merged.title} />
                       <div className="homeMiniMeta">
                         <span className="homeMiniTitle">{merged.title}</span>
                         <button
                           type="button"
                           className={`heartBtn heartBtnSmall ${favSet.has(merged.id) ? "heartBtnActive" : ""}`}
-                          onClick={() => toggleFavorite(merged)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(merged);
+                          }}
                           disabled={favoriteBusyId === merged.id}
                         >
                           ♥
@@ -438,7 +478,7 @@ function HomePage() {
                 aria-label="카테고리"
               />
               <div className="gallerySearchActions">
-                <button type="submit" className="primary" disabled={galleryPending || !token}>
+                <button type="submit" className="primary" disabled={galleryPending}>
                   검색
                 </button>
                 <button
@@ -486,7 +526,19 @@ function HomePage() {
                   <>
                     <div className="imageGrid">
                       {searchResultsBare.map((img) => (
-                        <article key={`s-${img.id}`} className="imageCard">
+                        <article
+                          key={`s-${img.id}`}
+                          className="imageCard clickableCard"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => navigate(`/images/${img.id}`)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              navigate(`/images/${img.id}`);
+                            }
+                          }}
+                        >
                           <div className="imageCardVisual">
                             <img
                               className="thumb"
@@ -502,7 +554,10 @@ function HomePage() {
                             <button
                               type="button"
                               className={`heartBtn ${favSet.has(img.id) ? "heartBtnActive" : ""}`}
-                              onClick={() => toggleFavorite(img)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleFavorite(img);
+                              }}
                               disabled={favoriteBusyId === img.id}
                             >
                               {favoriteBusyId === img.id ? "…" : "♥"}
@@ -600,56 +655,9 @@ function HomePage() {
           </section>
         )}
 
-        {tab === "profile" && (
-          <section className="panel">
-            <h2>Profile</h2>
-            <div className="avatarPlaceholder" />
-            <label>
-              Name
-              <input
-                value={profileForm.name}
-                onChange={(e) => setProfileForm((prev) => ({ ...prev, name: e.target.value }))}
-              />
-            </label>
-            <label>
-              Email
-              <input
-                value={profileForm.email}
-                onChange={(e) => setProfileForm((prev) => ({ ...prev, email: e.target.value }))}
-              />
-            </label>
-            <button className="outlineBtn" onClick={saveProfile} disabled={profilePending}>
-              {profilePending ? "Saving..." : "Save Profile"}
-            </button>
-            <button className="primary" onClick={logout}>
-              Logout
-            </button>
-            <button
-              type="button"
-              className="dangerBtn"
-              onClick={() => alert("Delete Account API는 다음 단계에서 연결 예정입니다.")}
-            >
-              Delete Account
-            </button>
-            {me && <pre className="jsonBlock">{JSON.stringify(me, null, 2)}</pre>}
-          </section>
-        )}
       </section>
 
-      <nav className="bottomNav">
-        <button className={tab === "home" ? "active" : ""} onClick={() => setTab("home")}>
-          Home
-        </button>
-        <button className={tab === "upload" ? "active" : ""} onClick={() => setTab("upload")}>
-          Upload
-        </button>
-        <button className={tab === "gallery" ? "active" : ""} onClick={() => setTab("gallery")}>
-          Gallery
-        </button>
-        <button className={tab === "profile" ? "active" : ""} onClick={() => setTab("profile")}>
-          Profile
-        </button>
-      </nav>
+      <AppBottomNav homeTab={tab} />
     </main>
   );
 }
@@ -670,6 +678,46 @@ export default function App() {
         element={
           <RequireAuth>
             <HomePage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/profile/uploads"
+        element={
+          <RequireAuth>
+            <MyUploadsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/profile/edit"
+        element={
+          <RequireAuth>
+            <ProfileEditPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <RequireAuth>
+            <ProfileLandingPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/verify"
+        element={
+          <RequireAuth>
+            <VerifyPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/images/:imageId"
+        element={
+          <RequireAuth>
+            <ImageDetailPage />
           </RequireAuth>
         }
       />
